@@ -2,69 +2,62 @@ import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../context/AuthContext";
 import UploadModal from "../components/UploadModal";
-import MemoryCard from "../components/MemoryCard";
+import AlbumCard from "../components/AlbumCard"; // Import the AlbumCard component
 
 export default function Home() {
   const { user, signOut } = useAuth();
-  const [memories, setMemories] = useState([]);
+  const [albums, setAlbums] = useState([]); // Now stores albums
   const [loading, setLoading] = useState(true);
-  const [showUpload, setShowUpload] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false); // Renamed for clarity
 
-  useEffect(() => {
-    fetchMemories();
-  }, []);
-  async function fetchMemories() {
+  const fetchAlbums = async () => {
     setLoading(true);
 
-    const { data: memoriesData, error } = await supabase
-      .from("memories")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(12);
+    // Fetch albums and count their associated memories
+    const { data: albumsData, error } = await supabase
+      .from("albums")
+      .select(
+        `
+        *,
+        memories(count)
+      `
+      )
+      .order("created_at", { ascending: false });
 
     if (error) {
-      console.error("Error fetching memories:", error.message);
-      setLoading(false);
-      return;
+      console.error("Error fetching albums:", error.message);
+    } else {
+      setAlbums(albumsData);
     }
-
-    // Create a signed URL for each memory
-    const signedMemories = await Promise.all(
-      memoriesData.map(async (memory) => {
-        // Use the media_path column to generate the signed URL
-        if (memory.media_path) {
-          const { data: signedData, error: signedError } =
-            await supabase.storage
-              .from("family-memories")
-              .createSignedUrl(memory.media_path, 60 * 60); // 1 hour expiry
-
-          if (signedError) {
-            console.error("Error creating signed URL:", signedError.message);
-            // Set media_url to null or a placeholder to avoid breaking the UI
-            memory.media_url = null;
-          } else {
-            // Update the media_url property with the signed URL
-            memory.media_url = signedData.signedUrl;
-          }
-        }
-        return memory;
-      })
-    );
-
-    setMemories(signedMemories);
     setLoading(false);
+  };
+
+  useEffect(() => {
+    // Only fetch albums if a user is logged in
+    if (user) {
+      fetchAlbums();
+    }
+  }, [user]); // Re-run effect when the user's login status changes
+
+  // If the user is not logged in, show a simple message
+  if (!user) {
+    return (
+      <div className="flex justify-center items-center h-screen bg-pink-50 text-pink-700 font-inter">
+        <p>Please log in to view family memories.</p>
+      </div>
+    );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-pink-50 to-white p-6">
+    <div className="min-h-screen bg-gradient-to-b from-pink-50 to-white p-6 font-inter">
       {/* Header */}
       <header className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-pink-700">
-          Welcome, {user.email.split("@")[0]} ❤️
+          Welcome, {user.email ? user.email.split("@")[0] : "Family Member"} ❤️
         </h1>
         <button
           onClick={() => signOut()}
-          className="bg-pink-600 text-white px-4 py-2 rounded hover:bg-pink-700 transition"
+          className="bg-pink-600 text-white px-4 py-2 rounded-lg shadow-md hover:bg-pink-700 transition-colors duration-200"
         >
           Logout
         </button>
@@ -73,43 +66,43 @@ export default function Home() {
       {/* Stats */}
       <section className="mb-8">
         <p className="text-gray-700 text-lg">
-          You have <span className="font-semibold">{memories.length}</span>{" "}
-          memories saved.
+          You have <span className="font-semibold">{albums.length}</span> albums
+          saved.
         </p>
       </section>
 
-      {/* Upload Button */}
+      {/* Create New Album Button */}
       <div className="mb-6">
         <button
-          onClick={() => setShowUpload(true)}
-          className="bg-pink-500 hover:bg-pink-600 text-white px-5 py-3 rounded shadow-lg transition"
+          onClick={() => setShowUploadModal(true)}
+          className="bg-pink-500 hover:bg-pink-600 text-white px-5 py-3 rounded-lg shadow-lg transition-colors duration-200"
         >
-          + Add New Memory
+          + Create New Album
         </button>
       </div>
 
-      {/* Memories Grid */}
+      {/* Albums Grid */}
       <section>
         {loading ? (
-          <p className="text-center text-gray-500">Loading memories...</p>
-        ) : memories.length === 0 ? (
+          <p className="text-center text-gray-500">Loading albums...</p>
+        ) : albums.length === 0 ? (
           <p className="text-center text-gray-500">
-            No memories yet. Add your first one!
+            No albums yet. Create your first one!
           </p>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-            {memories.map((memory) => (
-              <MemoryCard key={memory.id} memory={memory} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            {albums.map((album) => (
+              <AlbumCard key={album.id} album={album} />
             ))}
           </div>
         )}
       </section>
 
-      {/* Upload Modal */}
-      {showUpload && (
+      {/* Upload Modal (for new album creation) */}
+      {showUploadModal && (
         <UploadModal
-          onClose={() => setShowUpload(false)}
-          onUpload={fetchMemories}
+          onClose={() => setShowUploadModal(false)}
+          onUpload={fetchAlbums} // Refresh albums after upload
         />
       )}
     </div>

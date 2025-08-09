@@ -7,23 +7,19 @@ export default function UploadModal({ onClose, onUpload }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [eventTag, setEventTag] = useState("");
-  const [file, setFile] = useState(null);
-  const [mediaType, setMediaType] = useState("image");
+  const [files, setFiles] = useState([]); // State now holds an array of files
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   const handleFileChange = (e) => {
-    const selected = e.target.files[0];
-    if (!selected) return;
-
-    setFile(selected);
-    setMediaType(selected.type.startsWith("video") ? "video" : "image");
+    // Allows multiple files to be selected
+    setFiles(Array.from(e.target.files));
   };
 
   const handleUpload = async (e) => {
     e.preventDefault();
-    if (!file || !title.trim()) {
-      setError("Please provide a title and select a file.");
+    if (files.length === 0 || !title.trim()) {
+      setError("Please provide a title and select at least one file.");
       return;
     }
 
@@ -31,38 +27,60 @@ export default function UploadModal({ onClose, onUpload }) {
     setError(null);
 
     try {
-      // 1. Create a secure file path based on the user ID and timestamp
-      const filePath = `${user.id}/${Date.now()}_${file.name}`;
+      // 1. Create a new album entry first
+      const { data: albumData, error: albumError } = await supabase
+        .from("albums")
+        .insert([
+          {
+            title,
+            description,
+            event_tag: eventTag,
+            uploaded_by: user.id,
+          },
+        ])
+        .select();
 
-      // 2. Upload the file to the 'family-memories' bucket
-      const { error: uploadError } = await supabase.storage
-        .from("family-memories")
-        .upload(filePath, file);
+      if (albumError) throw albumError;
 
-      if (uploadError) throw uploadError;
+      const albumId = albumData[0].id;
+      const memoriesToInsert = [];
 
-      // 3. Instead of getting a public URL, we save the file path to the database.
-      // This path will be used later to generate a secure, temporary signed URL.
-      const { error: insertError } = await supabase.from("memories").insert([
-        {
-          title,
-          description,
-          event_tag: eventTag,
-          media_path: filePath, // Use the new column
-          media_type: mediaType,
+      // 2. Loop through each file and upload it
+      for (const file of files) {
+        const filePath = `${user.id}/${albumId}/${Date.now()}_${file.name}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("family-memories")
+          .upload(filePath, file);
+
+        if (uploadError) {
+          console.error(`Error uploading ${file.name}:`, uploadError);
+          continue; // Skip to the next file
+        }
+
+        memoriesToInsert.push({
+          title: file.name, // Use file name as title, or let user edit later
+          media_path: filePath,
+          media_type: file.type.startsWith("video") ? "video" : "image",
           uploaded_by: user.id,
-        },
-      ]);
+          album_id: albumId, // Link to the new album
+        });
+      }
 
-      if (insertError) throw insertError;
+      // 3. Insert all memories into the database at once
+      if (memoriesToInsert.length > 0) {
+        const { error: insertError } = await supabase
+          .from("memories")
+          .insert(memoriesToInsert);
+        if (insertError) throw insertError;
+      }
 
       // 4. Reset state and close the modal
       setTitle("");
       setDescription("");
       setEventTag("");
-      setFile(null);
-
-      onUpload(); // Calls the parent function to refresh the memories list
+      setFiles([]);
+      onUpload();
       onClose();
     } catch (err) {
       setError(err.message);
@@ -77,7 +95,9 @@ export default function UploadModal({ onClose, onUpload }) {
         onSubmit={handleUpload}
         className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full space-y-4"
       >
-        <h2 className="text-xl font-semibold text-pink-700">Add New Memory</h2>
+        <h2 className="text-xl font-semibold text-pink-700">
+          Create New Album
+        </h2>
 
         <input
           type="text"
@@ -107,9 +127,17 @@ export default function UploadModal({ onClose, onUpload }) {
         <input
           type="file"
           accept="image/*,video/*"
+          multiple // Crucial for multi-file selection
           onChange={handleFileChange}
           required
         />
+
+        {/* Display selected file names */}
+        {files.length > 0 && (
+          <div className="text-sm text-gray-500">
+            Selected files: {files.length}
+          </div>
+        )}
 
         {error && <p className="text-red-500">{error}</p>}
 
