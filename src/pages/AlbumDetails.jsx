@@ -1,10 +1,10 @@
-// src/pages/AlbumDetails.jsx
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import MemoryCard from "../components/MemoryCard";
 import AddMoreToAlbumModal from "../components/AddMoreToAlbumModal";
 import LightboxModal from "../components/LightboxModal";
+import DeleteConfirmationModal from "../components/DeleteConfirmationModal";
 
 export default function AlbumDetails() {
   const { id } = useParams();
@@ -16,33 +16,40 @@ export default function AlbumDetails() {
   const [showAddMoreModal, setShowAddMoreModal] = useState(false);
   const [showLightbox, setShowLightbox] = useState(false);
   const [selectedMemory, setSelectedMemory] = useState(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [memoryToDelete, setMemoryToDelete] = useState(null);
+
+  const openDeleteModal = (memory) => {
+    setMemoryToDelete(memory);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!memoryToDelete) return;
+
+    try {
+      const { error: dbError } = await supabase
+        .from("memories")
+        .delete()
+        .eq("id", memoryToDelete.id);
+      if (dbError) throw dbError;
+
+      const { error: storageError } = await supabase.storage
+        .from("family-memories")
+        .remove([memoryToDelete.media_path]);
+      if (storageError) throw storageError;
+
+      setMemories(memories.filter((mem) => mem.id !== memoryToDelete.id));
+      setShowDeleteModal(false);
+      setMemoryToDelete(null);
+    } catch (err) {
+      console.error("Error deleting memory:", err.message);
+    }
+  };
 
   const handleMemoryClick = (memory) => {
     setSelectedMemory(memory);
     setShowLightbox(true);
-  };
-
-  // New delete function
-  const handleDeleteMemory = async (memoryId, mediaPath) => {
-    try {
-      // Delete the record from the 'memories' table
-      const { error: dbError } = await supabase
-        .from("memories")
-        .delete()
-        .eq("id", memoryId);
-      if (dbError) throw dbError;
-
-      // Delete the file from Supabase Storage
-      const { error: storageError } = await supabase.storage
-        .from("family-memories")
-        .remove([mediaPath]);
-      if (storageError) throw storageError;
-
-      // Optimistically update the UI by filtering out the deleted memory
-      setMemories(memories.filter((mem) => mem.id !== memoryId));
-    } catch (err) {
-      console.error("Error deleting memory:", err.message);
-    }
   };
 
   const fetchAlbumData = async () => {
@@ -64,10 +71,9 @@ export default function AlbumDetails() {
     setAlbum(data);
     const signedMemories = await Promise.all(
       data.memories.map(async (memory) => {
-        const { data: signedData, error: signedUrlError } =
-          await supabase.storage
-            .from("family-memories")
-            .createSignedUrl(memory.media_path, 60 * 60);
+        const { data: signedData, error: signedUrlError } = await supabase.storage
+          .from("family-memories")
+          .createSignedUrl(memory.media_path, 60 * 60);
 
         if (signedUrlError) {
           console.error(
@@ -80,7 +86,9 @@ export default function AlbumDetails() {
       })
     );
     setMemories(
-      signedMemories.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      signedMemories.sort(
+        (a, b) => new Date(b.created_at) - new Date(a.created_at)
+      )
     );
     setLoading(false);
   };
@@ -151,11 +159,10 @@ export default function AlbumDetails() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {memories.map((memory) => (
-            <div key={memory.id} onClick={() => handleMemoryClick(memory)}>
+            <div key={memory.id} onClick={() => handleMemoryClick(memory)} className="cursor-pointer">
               <MemoryCard
                 memory={memory}
-                onDelete={handleDeleteMemory}
-                // We no longer need the onDownload prop here since the button is now inside the card
+                onDelete={() => openDeleteModal(memory)}
               />
             </div>
           ))}
@@ -174,6 +181,12 @@ export default function AlbumDetails() {
         <LightboxModal
           memory={selectedMemory}
           onClose={() => setShowLightbox(false)}
+        />
+      )}
+      {showDeleteModal && (
+        <DeleteConfirmationModal
+          onConfirm={confirmDelete}
+          onCancel={() => setShowDeleteModal(false)}
         />
       )}
     </div>
