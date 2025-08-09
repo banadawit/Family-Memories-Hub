@@ -13,10 +13,10 @@ export default function Home() {
   useEffect(() => {
     fetchMemories();
   }, []);
-
   async function fetchMemories() {
     setLoading(true);
-    const { data, error } = await supabase
+
+    const { data: memoriesData, error } = await supabase
       .from("memories")
       .select("*")
       .order("created_at", { ascending: false })
@@ -24,9 +24,34 @@ export default function Home() {
 
     if (error) {
       console.error("Error fetching memories:", error.message);
-    } else {
-      setMemories(data);
+      setLoading(false);
+      return;
     }
+
+    // Create a signed URL for each memory
+    const signedMemories = await Promise.all(
+      memoriesData.map(async (memory) => {
+        // Use the media_path column to generate the signed URL
+        if (memory.media_path) {
+          const { data: signedData, error: signedError } =
+            await supabase.storage
+              .from("family-memories")
+              .createSignedUrl(memory.media_path, 60 * 60); // 1 hour expiry
+
+          if (signedError) {
+            console.error("Error creating signed URL:", signedError.message);
+            // Set media_url to null or a placeholder to avoid breaking the UI
+            memory.media_url = null;
+          } else {
+            // Update the media_url property with the signed URL
+            memory.media_url = signedData.signedUrl;
+          }
+        }
+        return memory;
+      })
+    );
+
+    setMemories(signedMemories);
     setLoading(false);
   }
 

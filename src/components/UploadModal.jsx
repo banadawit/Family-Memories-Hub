@@ -31,32 +31,24 @@ export default function UploadModal({ onClose, onUpload }) {
     setError(null);
 
     try {
+      // 1. Create a secure file path based on the user ID and timestamp
       const filePath = `${user.id}/${Date.now()}_${file.name}`;
 
-      console.log("Uploading to bucket: family-memories");
-      console.log("File path:", filePath);
-      console.log("File name:", file.name);
-      console.log("File type:", file.type);
-      console.log("File size:", file.size);
-      console.log("Logged-in user:", user);
-
+      // 2. Upload the file to the 'family-memories' bucket
       const { error: uploadError } = await supabase.storage
         .from("family-memories")
         .upload(filePath, file);
 
       if (uploadError) throw uploadError;
 
-      const { data } = supabase.storage
-        .from("family-memories")
-        .getPublicUrl(filePath);
-
-
+      // 3. Instead of getting a public URL, we save the file path to the database.
+      // This path will be used later to generate a secure, temporary signed URL.
       const { error: insertError } = await supabase.from("memories").insert([
         {
           title,
           description,
           event_tag: eventTag,
-          media_url: data.publicUrl,
+          media_path: filePath, // Use the new column
           media_type: mediaType,
           uploaded_by: user.id,
         },
@@ -64,12 +56,13 @@ export default function UploadModal({ onClose, onUpload }) {
 
       if (insertError) throw insertError;
 
+      // 4. Reset state and close the modal
       setTitle("");
       setDescription("");
       setEventTag("");
       setFile(null);
 
-      onUpload(); // refresh memories list
+      onUpload(); // Calls the parent function to refresh the memories list
       onClose();
     } catch (err) {
       setError(err.message);
