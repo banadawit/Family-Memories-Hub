@@ -8,6 +8,7 @@ import DeleteConfirmationModal from "../components/DeleteConfirmationModal";
 import Navbar from "../components/Navbar";
 import AlbumCard from "../components/AlbumCard";
 import { Link } from "react-router-dom";
+import useDebounce from "../hooks/useDebounce";
 
 export default function AlbumDetails() {
   const { id } = useParams();
@@ -16,12 +17,19 @@ export default function AlbumDetails() {
   const [memories, setMemories] = useState([]);
   const [contributors, setContributors] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [memoriesLoading, setMemoriesLoading] = useState(false); // New loading state
   const [error, setError] = useState(null);
   const [showAddMoreModal, setShowAddMoreModal] = useState(false);
   const [showLightbox, setShowLightbox] = useState(false);
   const [selectedMemory, setSelectedMemory] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [memoryToDelete, setMemoryToDelete] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedMonth, setSelectedMonth] = useState('');
+  const [selectedYear, setSelectedYear] = useState('');
+  const [selectedDay, setSelectedDay] = useState('');
+
+  const debouncedSearchQuery = useDebounce(searchQuery, 500);
 
   const openDeleteModal = (memory) => {
     setMemoryToDelete(memory);
@@ -55,50 +63,75 @@ export default function AlbumDetails() {
     setSelectedMemory(memory);
     setShowLightbox(true);
   };
+  
+  // New function to handle fetching just the memories
+  const fetchMemories = async () => {
+    setMemoriesLoading(true);
 
-  const fetchAlbumData = async () => {
-    setLoading(true);
-    setError(null);
-    const { data, error: fetchError } = await supabase
+    let query = supabase
       .from("albums")
-      .select(`*, memories(*)`)
-      .eq("id", id)
-      .single();
-
-    if (fetchError || !data) {
-      console.error("Error fetching album:", fetchError);
-      setError(fetchError?.message || "Album not found.");
-      setLoading(false);
-      navigate("/404");
-      return;
+      .select(`id, memories(*)`)
+      .eq("id", id);
+      
+    if (debouncedSearchQuery.trim()) {
+      query = supabase
+        .from("albums")
+        .select(`
+          id,
+          memories!inner(id, title, description, media_path, media_type, created_at)
+        `)
+        .eq("id", id)
+        .ilike('memories.title', `%${debouncedSearchQuery}%`);
     }
-    setAlbum(data);
-    const signedMemories = await Promise.all(
-      data.memories.map(async (memory) => {
-        const { data: signedData, error: signedUrlError } =
-          await supabase.storage
-            .from("family-memories")
-            .createSignedUrl(memory.media_path, 60 * 60);
 
-        if (signedUrlError) {
-          console.error(
-            `Error creating signed URL for ${memory.media_path}:`,
-            signedUrlError
-          );
-          return { ...memory, media_url: null };
-        }
-        return { ...memory, media_url: signedData.signedUrl };
-      })
-    );
-    setMemories(
-      signedMemories.sort(
-        (a, b) => new Date(b.created_at) - new Date(a.created_at)
-      )
-    );
-    setLoading(false);
+    // Add filtering by date
+    if (selectedYear || selectedMonth || selectedDay) {
+      const yearToFilter = selectedYear || new Date().getFullYear();
+      let startOfPeriod, endOfPeriod;
+      
+      if (selectedDay && selectedMonth) {
+        const monthIndex = new Date(Date.parse(selectedMonth + " 1, " + yearToFilter)).getMonth();
+        const dayToFilter = parseInt(selectedDay, 10);
+        startOfPeriod = new Date(yearToFilter, monthIndex, dayToFilter).toISOString();
+        endOfPeriod = new Date(yearToFilter, monthIndex, dayToFilter, 23, 59, 59, 999).toISOString();
+      } else if (selectedMonth) {
+        const monthIndex = new Date(Date.parse(selectedMonth + " 1, " + yearToFilter)).getMonth();
+        startOfPeriod = new Date(yearToFilter, monthIndex, 1).toISOString();
+        endOfPeriod = new Date(yearToFilter, monthIndex + 1, 0, 23, 59, 59, 999).toISOString();
+      } else if (selectedYear) {
+        startOfPeriod = new Date(yearToFilter, 0, 1).toISOString();
+        endOfPeriod = new Date(yearToFilter, 11, 31, 23, 59, 59, 999).toISOString();
+      }
+
+      query = query.gte('memories.created_at', startOfPeriod).lte('memories.created_at', endOfPeriod);
+    }
+
+    const { data, error: fetchError } = await query.single();
+    
+    if (fetchError || !data) {
+        setMemories([]);
+    } else if (data.memories && data.memories.length > 0) {
+      const signedMemories = await Promise.all(
+        data.memories.map(async (memory) => {
+          const { data: signedData, error: signedUrlError } =
+            await supabase.storage
+              .from("family-memories")
+              .createSignedUrl(memory.media_path, 60 * 60);
+
+          if (signedUrlError) {
+            console.error(`Error creating signed URL for ${memory.media_path}:`, signedUrlError);
+            return { ...memory, media_url: null };
+          }
+          return { ...memory, media_url: signedData.signedUrl };
+        })
+      );
+      setMemories(signedMemories.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
+    } else {
+      setMemories([]);
+    }
+    setMemoriesLoading(false);
   };
-
-  // New function to fetch unique contributors
+  
   const fetchContributors = async () => {
     if (!id) return;
 
@@ -123,7 +156,6 @@ export default function AlbumDetails() {
     if (profilesError) {
       console.error("Error fetching contributors:", profilesError);
     } else {
-      // Corrected logic: Generate a signed URL for each avatar
       const signedContributors = await Promise.all(
         profilesData.map(async (profile) => {
           if (profile.avatar_url) {
@@ -134,9 +166,9 @@ export default function AlbumDetails() {
 
             if (signedUrlError) {
               console.error(`Error signing avatar URL for ${profile.full_name}:`, signedUrlError);
-              return { ...profile, avatar_url: null }; // Return profile with no avatar
+              return { ...profile, avatar_url: null };
             }
-            return { ...profile, avatar_url: signedData.signedUrl }; // Update avatar_url to the signed URL
+            return { ...profile, avatar_url: signedData.signedUrl };
           }
           return profile;
         })
@@ -145,12 +177,36 @@ export default function AlbumDetails() {
     }
   };
 
+  const fetchAlbumDetails = async () => {
+    setLoading(true);
+    const { data, error: fetchError } = await supabase
+      .from("albums")
+      .select(`id, title, description, event_tag, created_at, memories(*)`)
+      .eq("id", id)
+      .single();
+    if (fetchError || !data) {
+      setError(fetchError?.message || "Album not found.");
+      setLoading(false);
+      navigate("/404");
+      return;
+    }
+    setAlbum(data);
+    setLoading(false);
+  };
+
   useEffect(() => {
     if (id) {
-      fetchAlbumData();
-      fetchContributors();
+      fetchAlbumDetails(); // Fetch album details once
+      fetchContributors(); // Fetch contributors once
     }
   }, [id]);
+  
+  useEffect(() => {
+    if (id) {
+      fetchMemories(); // Re-fetch memories on filter change
+    }
+  }, [id, debouncedSearchQuery, selectedMonth, selectedYear, selectedDay]);
+
 
   if (loading)
     return (
@@ -170,6 +226,16 @@ export default function AlbumDetails() {
         Album not found.
       </div>
     );
+
+  const months = [
+    "January", "February", "March", "April", "May", "June", "July",
+    "August", "September", "October", "November", "December",
+  ];
+  const years = Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i);
+  const daysInMonth = (month, year) => {
+    if (!month || !year) return [];
+    return Array.from({ length: new Date(year, months.indexOf(month) + 1, 0).getDate() }, (_, i) => i + 1);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-pink-50 to-white">
@@ -192,7 +258,6 @@ export default function AlbumDetails() {
           </span>
         )}
 
-        {/* New Contributors Section */}
         {contributors.length > 0 && (
           <div className="my-6">
             <h3 className="text-lg font-semibold text-gray-800 mb-2">
@@ -207,7 +272,7 @@ export default function AlbumDetails() {
                 >
                   {contributor.avatar_url ? (
                     <img
-                      src={contributor.avatar_url} // This will now be the signed URL
+                      src={contributor.avatar_url}
                       alt={contributor.full_name}
                       className="w-8 h-8 rounded-full object-cover"
                     />
@@ -237,13 +302,59 @@ export default function AlbumDetails() {
             + Add More Memories to Album
           </button>
         </div>
+        
+        {/* Search and Filter Section */}
+        <div className="mb-6 flex space-x-4 items-center">
+          <input
+            type="text"
+            placeholder="Search memories in this album..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="flex-grow p-2 border rounded-lg focus:ring-2 focus:ring-pink-500"
+          />
+          <select
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(e.target.value)}
+            className="p-2 border rounded-lg focus:ring-2 focus:ring-pink-500"
+          >
+            <option value="">All Years</option>
+            {years.map((year) => (
+              <option key={year} value={year}>{year}</option>
+            ))}
+          </select>
+          <select
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+            className="p-2 border rounded-lg focus:ring-2 focus:ring-pink-500"
+          >
+            <option value="">All Months</option>
+            {months.map((month) => (
+              <option key={month} value={month}>{month}</option>
+            ))}
+          </select>
+          <select
+            value={selectedDay}
+            onChange={(e) => setSelectedDay(e.target.value)}
+            className="p-2 border rounded-lg focus:ring-2 focus:ring-pink-500"
+          >
+            <option value="">All Days</option>
+            {daysInMonth(selectedMonth, selectedYear).map((day) => (
+              <option key={day} value={day}>{day}</option>
+            ))}
+          </select>
+        </div>
+
 
         <h2 className="text-2xl font-semibold text-pink-700 mb-4">
           Memories in this Album ({memories.length})
         </h2>
-        {memories.length === 0 ? (
+        {memoriesLoading ? (
+          <p className="text-center p-8 font-inter text-gray-700">
+            Loading memories...
+          </p>
+        ) : memories.length === 0 ? (
           <p className="text-center text-gray-500">
-            No memories in this album yet. Add some!
+            No memories found in this album.
           </p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">

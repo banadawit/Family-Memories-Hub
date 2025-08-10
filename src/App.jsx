@@ -12,6 +12,7 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import SetPassword from "./pages/SetPassword";
 import PersonDetails from "./pages/PersonDetails";
+import { SearchProvider } from "./context/SearchContext"; // Import SearchProvider
 /**
  * PrivateRoute component to protect routes that require authentication.
  * If the user is not logged in, they are redirected to the login page.
@@ -43,62 +44,64 @@ function PrivateRoute({ children }) {
 export default function App() {
   return (
     <AuthProvider>
-      {/* Change <Router> to <BrowserRouter> */}
-      <Router>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
-          <Route
-            path="/"
-            element={
-              <PrivateRoute>
-                <Home />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/album/:id"
-            element={
-              <PrivateRoute>
-                <AlbumDetails />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/profile"
-            element={
-              <PrivateRoute>
-                <Profile />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/profile/:id"
-            element={
-              <PrivateRoute>
-                <Profile />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/set-password"
-            element={
-              <PrivateRoute>
-                <SetPassword />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/person/:id"
-            element={
-              <PrivateRoute>
-                <PersonDetails />
-              </PrivateRoute>
-            }
-          />
-          <Route path="*" element={<Navigate to="/" />} />
-        </Routes>
-      </Router>
+      <SearchProvider>
+        {/* Change <Router> to <BrowserRouter> */}
+        <Router>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Signup />} />
+            <Route
+              path="/"
+              element={
+                <PrivateRoute>
+                  <Home />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/album/:id"
+              element={
+                <PrivateRoute>
+                  <AlbumDetails />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/profile"
+              element={
+                <PrivateRoute>
+                  <Profile />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/profile/:id"
+              element={
+                <PrivateRoute>
+                  <Profile />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/set-password"
+              element={
+                <PrivateRoute>
+                  <SetPassword />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/person/:id"
+              element={
+                <PrivateRoute>
+                  <PersonDetails />
+                </PrivateRoute>
+              }
+            />
+            <Route path="*" element={<Navigate to="/" />} />
+          </Routes>
+        </Router>
+      </SearchProvider>
     </AuthProvider>
   );
 }
