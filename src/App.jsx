@@ -1,16 +1,16 @@
 import {
-  BrowserRouter as Router,
+  BrowserRouter as Router, // <-- Note: Renamed to Router for consistency
   Routes,
   Route,
   Navigate,
 } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import Home from "./pages/Home";
-import AlbumDetails from "./pages/AlbumDetails"; // <--- Make sure this import is here
+import AlbumDetails from "./pages/AlbumDetails";
+import Profile from "./pages/Profile";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
-import Profile from "./pages/Profile";
-
+import SetPassword from "./pages/SetPassword";
 /**
  * PrivateRoute component to protect routes that require authentication.
  * If the user is not logged in, they are redirected to the login page.
@@ -42,6 +42,7 @@ function PrivateRoute({ children }) {
 export default function App() {
   return (
     <AuthProvider>
+      {/* Change <Router> to <BrowserRouter> */}
       <Router>
         <Routes>
           <Route path="/login" element={<Login />} />
@@ -62,8 +63,6 @@ export default function App() {
               </PrivateRoute>
             }
           />
-
-          {/* Main profile page for the current user */}
           <Route
             path="/profile"
             element={
@@ -72,8 +71,6 @@ export default function App() {
               </PrivateRoute>
             }
           />
-
-          {/* Dynamic route for other users' profiles */}
           <Route
             path="/profile/:id"
             element={
@@ -82,7 +79,14 @@ export default function App() {
               </PrivateRoute>
             }
           />
-
+          <Route
+            path="/set-password"
+            element={
+              <PrivateRoute>
+                <SetPassword />
+              </PrivateRoute>
+            }
+          />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </Router>

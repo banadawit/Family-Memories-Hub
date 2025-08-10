@@ -4,7 +4,8 @@ import { useAuth } from "../context/AuthContext";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import AlbumCard from "../components/AlbumCard";
-import MessageModal from "../components/MessageModal"; // Import the new message modal
+import MessageModal from "../components/MessageModal";
+import InviteUser from "../components/InviteUser";
 
 export default function Profile() {
   const { user } = useAuth();
@@ -20,10 +21,13 @@ export default function Profile() {
   const [avatarUrl, setAvatarUrl] = useState("");
   const [uploading, setUploading] = useState(false);
   const [albums, setAlbums] = useState([]);
-
+  
   // New state for custom messages
   const [showMessageModal, setShowMessageModal] = useState(false);
   const [messageContent, setMessageContent] = useState({ text: '', type: '' });
+  
+  // Restored: State to hold the user's role
+  const [profileRole, setProfileRole] = useState('member'); 
 
   const showCustomMessage = (text, type) => {
     setMessageContent({ text, type });
@@ -38,7 +42,7 @@ export default function Profile() {
 
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
-        .select(`full_name, avatar_url`)
+        .select(`full_name, avatar_url, role`) // Correct: Fetch the role
         .eq("id", profileId)
         .single();
       
@@ -48,6 +52,7 @@ export default function Profile() {
       } else if (profileData) {
         setFullName(profileData.full_name);
         setAvatarPath(profileData.avatar_url);
+        setProfileRole(profileData.role); // Correct: Set the role
         
         if (profileData.avatar_url) {
           const { data: signedData, error: signedUrlError } = await supabase.storage
@@ -105,10 +110,10 @@ export default function Profile() {
       if (error) {
         throw error;
       }
-      showCustomMessage('Profile updated successfully!', 'success'); // Replaced alert
+      showCustomMessage('Profile updated successfully!', 'success');
     } catch (error) {
       console.error("Error updating profile:", error.message);
-      showCustomMessage(`Error updating profile: ${error.message}`, 'error'); // Replaced alert
+      showCustomMessage(`Error updating profile: ${error.message}`, 'error');
     } finally {
       setLoading(false);
     }
@@ -146,10 +151,10 @@ export default function Profile() {
       setAvatarPath(filePath);
       setAvatarUrl(signedUrlData.signedUrl);
 
-      showCustomMessage('Avatar uploaded successfully! Click "Update Profile" to save your changes.', 'success'); // Replaced alert
+      showCustomMessage('Avatar uploaded successfully! Click "Update Profile" to save your changes.', 'success');
     } catch (error) {
       console.error("Error uploading avatar:", error.message);
-      showCustomMessage(`Error uploading avatar: ${error.message}`, 'error'); // Replaced alert
+      showCustomMessage(`Error uploading avatar: ${error.message}`, 'error');
     } finally {
       setUploading(false);
     }
@@ -272,6 +277,9 @@ export default function Profile() {
             </div>
           )}
         </div>
+        {isCurrentUserProfile && profileRole === 'admin' && (
+          <InviteUser />
+        )}
       </div>
       {showMessageModal && (
         <MessageModal
