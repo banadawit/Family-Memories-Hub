@@ -9,6 +9,7 @@ import Home from "./pages/Home";
 import AlbumDetails from "./pages/AlbumDetails"; // <--- Make sure this import is here
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import Profile from "./pages/Profile";
 
 /**
  * PrivateRoute component to protect routes that require authentication.
@@ -40,15 +41,11 @@ function PrivateRoute({ children }) {
  */
 export default function App() {
   return (
-    // AuthProvider makes the authentication context available to all components
     <AuthProvider>
       <Router>
         <Routes>
-          {/* Public routes */}
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
-
-          {/* Protected routes wrapped with PrivateRoute */}
           <Route
             path="/"
             element={
@@ -57,9 +54,8 @@ export default function App() {
               </PrivateRoute>
             }
           />
-          {/* Route for individual album details, using a dynamic ID parameter */}
           <Route
-            path="/album/:id" // <--- This route is crucial for AlbumDetails
+            path="/album/:id"
             element={
               <PrivateRoute>
                 <AlbumDetails />
@@ -67,7 +63,26 @@ export default function App() {
             }
           />
 
-          {/* Fallback route: redirects any unmatched paths to the home page */}
+          {/* Main profile page for the current user */}
+          <Route
+            path="/profile"
+            element={
+              <PrivateRoute>
+                <Profile />
+              </PrivateRoute>
+            }
+          />
+
+          {/* Dynamic route for other users' profiles */}
+          <Route
+            path="/profile/:id"
+            element={
+              <PrivateRoute>
+                <Profile />
+              </PrivateRoute>
+            }
+          />
+
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </Router>

@@ -5,12 +5,16 @@ import MemoryCard from "../components/MemoryCard";
 import AddMoreToAlbumModal from "../components/AddMoreToAlbumModal";
 import LightboxModal from "../components/LightboxModal";
 import DeleteConfirmationModal from "../components/DeleteConfirmationModal";
+import Navbar from "../components/Navbar";
+import AlbumCard from "../components/AlbumCard";
+import { Link } from "react-router-dom";
 
 export default function AlbumDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [album, setAlbum] = useState(null);
   const [memories, setMemories] = useState([]);
+  const [contributors, setContributors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showAddMoreModal, setShowAddMoreModal] = useState(false);
@@ -71,9 +75,10 @@ export default function AlbumDetails() {
     setAlbum(data);
     const signedMemories = await Promise.all(
       data.memories.map(async (memory) => {
-        const { data: signedData, error: signedUrlError } = await supabase.storage
-          .from("family-memories")
-          .createSignedUrl(memory.media_path, 60 * 60);
+        const { data: signedData, error: signedUrlError } =
+          await supabase.storage
+            .from("family-memories")
+            .createSignedUrl(memory.media_path, 60 * 60);
 
         if (signedUrlError) {
           console.error(
@@ -93,9 +98,57 @@ export default function AlbumDetails() {
     setLoading(false);
   };
 
+  // New function to fetch unique contributors
+  const fetchContributors = async () => {
+    if (!id) return;
+
+    const { data: memoriesData, error } = await supabase
+      .from("memories")
+      .select("uploaded_by")
+      .eq("album_id", id)
+      .not("uploaded_by", "is", null);
+
+    if (error) {
+      console.error("Error fetching contributor IDs:", error);
+      return;
+    }
+
+    const uniqueUserIds = [...new Set(memoriesData.map((m) => m.uploaded_by))];
+
+    const { data: profilesData, error: profilesError } = await supabase
+      .from("profiles")
+      .select("id, full_name, avatar_url")
+      .in("id", uniqueUserIds);
+
+    if (profilesError) {
+      console.error("Error fetching contributors:", profilesError);
+    } else {
+      // Corrected logic: Generate a signed URL for each avatar
+      const signedContributors = await Promise.all(
+        profilesData.map(async (profile) => {
+          if (profile.avatar_url) {
+            const { data: signedData, error: signedUrlError } =
+              await supabase.storage
+                .from("family-memories")
+                .createSignedUrl(profile.avatar_url, 3600);
+
+            if (signedUrlError) {
+              console.error(`Error signing avatar URL for ${profile.full_name}:`, signedUrlError);
+              return { ...profile, avatar_url: null }; // Return profile with no avatar
+            }
+            return { ...profile, avatar_url: signedData.signedUrl }; // Update avatar_url to the signed URL
+          }
+          return profile;
+        })
+      );
+      setContributors(signedContributors);
+    }
+  };
+
   useEffect(() => {
     if (id) {
       fetchAlbumData();
+      fetchContributors();
     }
   }, [id]);
 
@@ -119,76 +172,117 @@ export default function AlbumDetails() {
     );
 
   return (
-    <div className="container mx-auto p-4 font-inter">
-      <button
-        onClick={() => navigate("/")}
-        className="mb-4 bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 transition-colors duration-200"
-      >
-        &larr; Back to Albums
-      </button>
-
-      <h1 className="text-4xl font-bold text-pink-700 mb-2">{album.title}</h1>
-      {album.description && (
-        <p className="text-gray-600 mt-2 text-lg mb-4">{album.description}</p>
-      )}
-      {album.event_tag && (
-        <span className="inline-block bg-pink-100 text-pink-700 text-sm font-semibold px-3 py-1 rounded-full mb-4">
-          #{album.event_tag}
-        </span>
-      )}
-      <p className="text-gray-500 text-sm italic mb-6">
-        Created on {new Date(album.created_at).toLocaleDateString()}
-      </p>
-
-      <div className="mb-6">
+    <div className="min-h-screen bg-gradient-to-b from-pink-50 to-white">
+      <Navbar />
+      <div className="container mx-auto p-4 font-inter">
         <button
-          onClick={() => setShowAddMoreModal(true)}
-          className="bg-pink-500 hover:bg-pink-600 text-white px-5 py-3 rounded-lg shadow-lg transition-colors duration-200"
+          onClick={() => navigate("/")}
+          className="mb-4 bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 transition-colors duration-200"
         >
-          + Add More Memories to Album
+          &larr; Back to Albums
         </button>
-      </div>
 
-      <h2 className="text-2xl font-semibold text-pink-700 mb-4">
-        Memories in this Album ({memories.length})
-      </h2>
-      {memories.length === 0 ? (
-        <p className="text-center text-gray-500">
-          No memories in this album yet. Add some!
-        </p>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {memories.map((memory) => (
-            <div key={memory.id} onClick={() => handleMemoryClick(memory)} className="cursor-pointer">
-              <MemoryCard
-                memory={memory}
-                onDelete={() => openDeleteModal(memory)}
-              />
+        <h1 className="text-4xl font-bold text-pink-700 mb-2">{album.title}</h1>
+        {album.description && (
+          <p className="text-gray-600 mt-2 text-lg mb-4">{album.description}</p>
+        )}
+        {album.event_tag && (
+          <span className="inline-block bg-pink-100 text-pink-700 text-sm font-semibold px-3 py-1 rounded-full mb-4">
+            #{album.event_tag}
+          </span>
+        )}
+
+        {/* New Contributors Section */}
+        {contributors.length > 0 && (
+          <div className="my-6">
+            <h3 className="text-lg font-semibold text-gray-800 mb-2">
+              Contributors:
+            </h3>
+            <div className="flex flex-wrap items-center space-x-2">
+              {contributors.map((contributor) => (
+                <Link
+                  to={`/profile/${contributor.id}`}
+                  key={contributor.id}
+                  className="flex items-center space-x-2 p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition"
+                >
+                  {contributor.avatar_url ? (
+                    <img
+                      src={contributor.avatar_url} // This will now be the signed URL
+                      alt={contributor.full_name}
+                      className="w-8 h-8 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center text-xs text-gray-600">
+                      {contributor.full_name.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <span className="text-sm font-medium text-pink-700">
+                    {contributor.full_name}
+                  </span>
+                </Link>
+              ))}
             </div>
-          ))}
+          </div>
+        )}
+
+        <p className="text-gray-500 text-sm italic mb-6">
+          Created on {new Date(album.created_at).toLocaleDateString()}
+        </p>
+
+        <div className="mb-6">
+          <button
+            onClick={() => setShowAddMoreModal(true)}
+            className="bg-pink-500 hover:bg-pink-600 text-white px-5 py-3 rounded-lg shadow-lg transition-colors duration-200"
+          >
+            + Add More Memories to Album
+          </button>
         </div>
-      )}
 
-      {showAddMoreModal && (
-        <AddMoreToAlbumModal
-          albumId={album.id}
-          onClose={() => setShowAddMoreModal(false)}
-          onUpload={fetchAlbumData}
-        />
-      )}
+        <h2 className="text-2xl font-semibold text-pink-700 mb-4">
+          Memories in this Album ({memories.length})
+        </h2>
+        {memories.length === 0 ? (
+          <p className="text-center text-gray-500">
+            No memories in this album yet. Add some!
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            {memories.map((memory) => (
+              <div
+                key={memory.id}
+                onClick={() => handleMemoryClick(memory)}
+                className="cursor-pointer"
+              >
+                <MemoryCard
+                  memory={memory}
+                  onDelete={() => openDeleteModal(memory)}
+                />
+              </div>
+            ))}
+          </div>
+        )}
 
-      {showLightbox && (
-        <LightboxModal
-          memory={selectedMemory}
-          onClose={() => setShowLightbox(false)}
-        />
-      )}
-      {showDeleteModal && (
-        <DeleteConfirmationModal
-          onConfirm={confirmDelete}
-          onCancel={() => setShowDeleteModal(false)}
-        />
-      )}
+        {showAddMoreModal && (
+          <AddMoreToAlbumModal
+            albumId={album.id}
+            onClose={() => setShowAddMoreModal(false)}
+            onUpload={fetchAlbumData}
+          />
+        )}
+
+        {showLightbox && (
+          <LightboxModal
+            memory={selectedMemory}
+            onClose={() => setShowLightbox(false)}
+          />
+        )}
+        {showDeleteModal && (
+          <DeleteConfirmationModal
+            onConfirm={confirmDelete}
+            onCancel={() => setShowDeleteModal(false)}
+          />
+        )}
+      </div>
     </div>
   );
 }
