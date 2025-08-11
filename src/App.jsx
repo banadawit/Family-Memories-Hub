@@ -13,6 +13,7 @@ import Signup from "./pages/Signup";
 import SetPassword from "./pages/SetPassword";
 import PersonDetails from "./pages/PersonDetails";
 import { SearchProvider } from "./context/SearchContext"; // Import SearchProvider
+import HeirloomHub from "./pages/HeirloomHub";
 /**
  * PrivateRoute component to protect routes that require authentication.
  * If the user is not logged in, they are redirected to the login page.
@@ -90,6 +91,15 @@ export default function App() {
                 </PrivateRoute>
               }
             />
+            <Route
+              path="/heirloom-hub"
+              element={
+                <PrivateRoute>
+                  <HeirloomHub />
+                </PrivateRoute>
+              }
+            />
+
             <Route
               path="/person/:id"
               element={
