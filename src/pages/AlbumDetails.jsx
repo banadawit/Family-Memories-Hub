@@ -17,7 +17,7 @@ export default function AlbumDetails() {
   const [memories, setMemories] = useState([]);
   const [contributors, setContributors] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [memoriesLoading, setMemoriesLoading] = useState(false); // New loading state
+  const [memoriesLoading, setMemoriesLoading] = useState(false);
   const [error, setError] = useState(null);
   const [showAddMoreModal, setShowAddMoreModal] = useState(false);
   const [showLightbox, setShowLightbox] = useState(false);
@@ -64,27 +64,28 @@ export default function AlbumDetails() {
     setShowLightbox(true);
   };
   
-  // New function to handle fetching just the memories
-  const fetchMemories = async () => {
+  // This is the combined function to fetch all album data
+  const fetchAllAlbumData = async () => {
+    setLoading(true);
     setMemoriesLoading(true);
-
+    setError(null);
+    
     let query = supabase
       .from("albums")
-      .select(`id, memories(*)`)
+      .select(`id, title, description, event_tag, created_at, memories(*)`)
       .eq("id", id);
       
     if (debouncedSearchQuery.trim()) {
       query = supabase
         .from("albums")
         .select(`
-          id,
+          id, title, description, event_tag, created_at,
           memories!inner(id, title, description, media_path, media_type, created_at)
         `)
         .eq("id", id)
         .ilike('memories.title', `%${debouncedSearchQuery}%`);
     }
 
-    // Add filtering by date
     if (selectedYear || selectedMonth || selectedDay) {
       const yearToFilter = selectedYear || new Date().getFullYear();
       let startOfPeriod, endOfPeriod;
@@ -110,7 +111,22 @@ export default function AlbumDetails() {
     
     if (fetchError || !data) {
         setMemories([]);
-    } else if (data.memories && data.memories.length > 0) {
+        setLoading(false);
+        setMemoriesLoading(false);
+        setError(fetchError?.message || "Album not found.");
+        navigate("/404");
+        return;
+    }
+    
+    setAlbum({
+        id: data.id,
+        title: data.title,
+        description: data.description,
+        event_tag: data.event_tag,
+        created_at: data.created_at
+    });
+    
+    if (data.memories && data.memories.length > 0) {
       const signedMemories = await Promise.all(
         data.memories.map(async (memory) => {
           const { data: signedData, error: signedUrlError } =
@@ -129,6 +145,8 @@ export default function AlbumDetails() {
     } else {
       setMemories([]);
     }
+    
+    setLoading(false);
     setMemoriesLoading(false);
   };
   
@@ -177,36 +195,13 @@ export default function AlbumDetails() {
     }
   };
 
-  const fetchAlbumDetails = async () => {
-    setLoading(true);
-    const { data, error: fetchError } = await supabase
-      .from("albums")
-      .select(`id, title, description, event_tag, created_at, memories(*)`)
-      .eq("id", id)
-      .single();
-    if (fetchError || !data) {
-      setError(fetchError?.message || "Album not found.");
-      setLoading(false);
-      navigate("/404");
-      return;
-    }
-    setAlbum(data);
-    setLoading(false);
-  };
 
   useEffect(() => {
     if (id) {
-      fetchAlbumDetails(); // Fetch album details once
-      fetchContributors(); // Fetch contributors once
-    }
-  }, [id]);
-  
-  useEffect(() => {
-    if (id) {
-      fetchMemories(); // Re-fetch memories on filter change
+      fetchAllAlbumData();
+      fetchContributors();
     }
   }, [id, debouncedSearchQuery, selectedMonth, selectedYear, selectedDay]);
-
 
   if (loading)
     return (
@@ -377,7 +372,7 @@ export default function AlbumDetails() {
           <AddMoreToAlbumModal
             albumId={album.id}
             onClose={() => setShowAddMoreModal(false)}
-            onUpload={fetchAlbumData}
+            onUpload={fetchAllAlbumData}
           />
         )}
 
