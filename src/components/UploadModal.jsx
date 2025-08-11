@@ -7,12 +7,11 @@ export default function UploadModal({ onClose, onUpload }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [eventTag, setEventTag] = useState("");
-  const [files, setFiles] = useState([]); // State now holds an array of files
+  const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   const handleFileChange = (e) => {
-    // Allows multiple files to be selected
     setFiles(Array.from(e.target.files));
   };
 
@@ -44,9 +43,11 @@ export default function UploadModal({ onClose, onUpload }) {
 
       const albumId = albumData[0].id;
       const memoriesToInsert = [];
+      let coverPhotoPath = null;
 
       // 2. Loop through each file and upload it
-      for (const file of files) {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
         const filePath = `${user.id}/${albumId}/${Date.now()}_${file.name}`;
 
         const { error: uploadError } = await supabase.storage
@@ -55,15 +56,20 @@ export default function UploadModal({ onClose, onUpload }) {
 
         if (uploadError) {
           console.error(`Error uploading ${file.name}:`, uploadError);
-          continue; // Skip to the next file
+          continue;
+        }
+
+        // Set the first image as the cover photo
+        if (i === 0 && file.type.startsWith("image")) {
+          coverPhotoPath = filePath;
         }
 
         memoriesToInsert.push({
-          title: file.name, // Use file name as title, or let user edit later
+          title: file.name,
           media_path: filePath,
           media_type: file.type.startsWith("video") ? "video" : "image",
           uploaded_by: user.id,
-          album_id: albumId, // Link to the new album
+          album_id: albumId,
         });
       }
 
@@ -75,7 +81,16 @@ export default function UploadModal({ onClose, onUpload }) {
         if (insertError) throw insertError;
       }
 
-      // 4. Reset state and close the modal
+      // 4. Update the album with the cover photo path if an image was uploaded first
+      if (coverPhotoPath) {
+        const { error: updateError } = await supabase
+          .from("albums")
+          .update({ cover_photo_path: coverPhotoPath })
+          .eq("id", albumId);
+        if (updateError) throw updateError;
+      }
+
+      // 5. Reset state and close the modal
       setTitle("");
       setDescription("");
       setEventTag("");
@@ -98,7 +113,6 @@ export default function UploadModal({ onClose, onUpload }) {
         <h2 className="text-xl font-semibold text-pink-700">
           Create New Album
         </h2>
-
         <input
           type="text"
           placeholder="Title"
@@ -107,7 +121,6 @@ export default function UploadModal({ onClose, onUpload }) {
           onChange={(e) => setTitle(e.target.value)}
           required
         />
-
         <textarea
           placeholder="Description (optional)"
           className="w-full border p-2 rounded resize-none"
@@ -115,7 +128,6 @@ export default function UploadModal({ onClose, onUpload }) {
           value={description}
           onChange={(e) => setDescription(e.target.value)}
         />
-
         <input
           type="text"
           placeholder="Event Tag (e.g. Christmas 2024)"
@@ -123,24 +135,19 @@ export default function UploadModal({ onClose, onUpload }) {
           value={eventTag}
           onChange={(e) => setEventTag(e.target.value)}
         />
-
         <input
           type="file"
           accept="image/*,video/*"
-          multiple // Crucial for multi-file selection
+          multiple
           onChange={handleFileChange}
           required
         />
-
-        {/* Display selected file names */}
         {files.length > 0 && (
           <div className="text-sm text-gray-500">
             Selected files: {files.length}
           </div>
         )}
-
         {error && <p className="text-red-500">{error}</p>}
-
         <div className="flex justify-end space-x-2">
           <button
             type="button"

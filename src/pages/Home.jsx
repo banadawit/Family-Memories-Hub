@@ -7,19 +7,66 @@ import Navbar from "../components/Navbar";
 import TimelineView from "../components/TimelineView";
 import { useNavigate } from "react-router-dom";
 import { useSearch } from '../context/SearchContext';
+import DeleteConfirmationModal from "../components/DeleteConfirmationModal"; // Import the modal
 
 export default function Home() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { searchQuery } = useSearch();
-  const [selectedMonth, setSelectedMonth] = useState('');
-  const [selectedYear, setSelectedYear] = useState('');
-  const [selectedDay, setSelectedDay] = useState('');
+  const { searchQuery, selectedMonth, selectedYear, selectedDay } = useSearch();
   const [albums, setAlbums] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [viewMode, setViewMode] = useState("grid");
   const [groupedAlbums, setGroupedAlbums] = useState({});
+
+  // States for album deletion
+  const [showDeleteAlbumModal, setShowDeleteAlbumModal] = useState(false);
+  const [albumToDelete, setAlbumToDelete] = useState(null);
+
+  const openDeleteAlbumModal = (album) => {
+    setAlbumToDelete(album);
+    setShowDeleteAlbumModal(true);
+  };
+
+  const confirmDeleteAlbum = async () => {
+    if (!albumToDelete) return;
+
+    try {
+      // 1. Fetch all memories associated with the album to get their media_paths
+      const { data: memoriesData, error: memoriesError } = await supabase
+        .from('memories')
+        .select('media_path')
+        .eq('album_id', albumToDelete.id);
+
+      if (memoriesError) throw memoriesError;
+
+      // 2. Delete files from storage
+      if (memoriesData.length > 0) {
+        const filePathsToDelete = memoriesData.map(m => m.media_path);
+        const { error: storageError } = await supabase.storage
+          .from('family-memories')
+          .remove(filePathsToDelete);
+        if (storageError) console.error("Error deleting album files from storage:", storageError.message);
+      }
+      
+      // 3. Delete the album record (this will cascade delete memories and tags due to RLS)
+      const { error: albumError } = await supabase
+        .from('albums')
+        .delete()
+        .eq('id', albumToDelete.id);
+
+      if (albumError) throw albumError;
+
+      // Optimistically update UI
+      setAlbums(albums.filter(alb => alb.id !== albumToDelete.id));
+      
+      setShowDeleteAlbumModal(false);
+      setAlbumToDelete(null);
+    } catch (err) {
+      console.error("Error deleting album:", err.message);
+    }
+  };
+
 
   const fetchAlbums = async () => {
     setLoading(true);
@@ -120,7 +167,6 @@ export default function Home() {
           </p>
 
           <div className="mt-4 flex items-center space-x-4">
-            {/* Year filter dropdown */}
             <select
               value={selectedYear}
               onChange={(e) => setSelectedYear(e.target.value)}
@@ -132,7 +178,6 @@ export default function Home() {
               ))}
             </select>
             
-            {/* Month filter dropdown */}
             <select
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
@@ -144,7 +189,6 @@ export default function Home() {
               ))}
             </select>
             
-            {/* Day filter dropdown */}
             <select
               value={selectedDay}
               onChange={(e) => setSelectedDay(e.target.value)}
@@ -200,7 +244,11 @@ export default function Home() {
           ) : viewMode === "grid" ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
               {albums.map((album) => (
-                <AlbumCard key={album.id} album={album} />
+                <AlbumCard 
+                  key={album.id} 
+                  album={album} 
+                  onDeleteAlbum={openDeleteAlbumModal} // Pass the delete handler
+                />
               ))}
             </div>
           ) : (
@@ -212,6 +260,14 @@ export default function Home() {
           <UploadModal
             onClose={() => setShowUploadModal(false)}
             onUpload={fetchAlbums}
+          />
+        )}
+
+        {/* Delete Album Confirmation Modal */}
+        {showDeleteAlbumModal && (
+          <DeleteConfirmationModal
+            onConfirm={confirmDeleteAlbum}
+            onCancel={() => setShowDeleteAlbumModal(false)}
           />
         )}
       </div>

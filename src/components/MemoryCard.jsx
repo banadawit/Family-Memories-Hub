@@ -17,31 +17,41 @@ const MemoryCard = ({ memory, onDelete }) => {
 
   const handleDelete = (e) => {
     e.stopPropagation();
-    onDelete(); // This triggers the custom modal in the parent component
+    onDelete();
     setShowMenu(false);
   };
 
-  const handleDownload = async () => {
+  const handleDownload = async (e) => {
+    e.stopPropagation();
     if (!memory.media_path) {
       console.error("No media path available for download.");
       return;
     }
 
     try {
+      // Create a signed URL that is valid for 10 minutes
       const { data: signedData, error: signedError } = await supabase.storage
         .from("family-memories")
-        .createSignedUrl(memory.media_path, 60);
+        .createSignedUrl(memory.media_path, 600); // 600 seconds = 10 minutes
 
-      if (signedError) throw signedError;
+      if (signedError) {
+        console.error("Error creating signed URL:", signedError.message);
+        throw signedError;
+      }
 
-      const link = document.createElement("a");
-      link.href = signedData.signedUrl;
-      const fileName = memory.media_path.split("/").pop();
-      link.download = fileName;
-      document.body.appendChild(link);
-      document.body.removeChild(link);
+      const downloadLink = document.createElement("a");
+      downloadLink.href = signedData.signedUrl;
+      const fileName = memory.media_path.split("/").pop(); // Use the original file name
+      downloadLink.download = fileName;
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      document.body.removeChild(downloadLink);
+
+      console.log("Download triggered for:", fileName);
+
     } catch (err) {
       console.error("Error downloading file:", err.message);
+      // You could also add a user-facing error message here
     }
     setShowMenu(false);
   };
@@ -83,10 +93,7 @@ const MemoryCard = ({ memory, onDelete }) => {
           {showMenu && (
             <div className="mt-1 bg-white rounded-md shadow-lg p-2 space-y-1">
               <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDownload();
-                }}
+                onClick={handleDownload}
                 className="w-full text-left px-3 py-1 text-sm text-gray-700 hover:bg-gray-100 rounded-md flex items-center"
               >
                 <svg
