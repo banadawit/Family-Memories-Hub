@@ -265,10 +265,6 @@ export default function AlbumDetails() {
     <div className={`min-h-screen transition-colors duration-200 ${isCurrentThemeDark ? 'bg-gradient-to-b from-gray-900 to-gray-800' : 'bg-gradient-to-b from-pink-50 to-white'}`}>
       <Navbar />
       <div className="container mx-auto p-4 md:p-6 font-inter">
-        {/* Debugging Theme Indicator */}
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-          Current Theme: <span className="font-semibold">{isCurrentThemeDark ? "Dark" : "Light"}</span>
-        </p>
 
         <button
           onClick={() => navigate(-1)}

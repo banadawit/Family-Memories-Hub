@@ -479,6 +479,7 @@ export default function Navbar() {
         <LogoutConfirmationModal
           onConfirm={handleLogout}
           onCancel={() => setShowLogoutModal(false)}
+          darkMode={isDarkMode}
         />
       )}
     </nav>

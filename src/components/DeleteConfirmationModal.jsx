@@ -1,24 +1,40 @@
-// src/components/DeleteConfirmationModal.jsx
 import React from 'react';
 
-export default function DeleteConfirmationModal({ onConfirm, onCancel }) {
+export default function DeleteConfirmationModal({ onConfirm, onCancel, darkMode, itemName = "this item" }) { // Added darkMode prop and itemName
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-50 font-inter">
-      <div className="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full space-y-4">
-        <h3 className="text-xl font-semibold text-pink-700">Confirm Deletion</h3>
-        <p className="text-gray-700">
-          Are you sure you want to delete this memory? This action cannot be undone.
+    <div
+      className={`fixed inset-0 flex items-center justify-center z-50 font-inter p-4
+                 ${darkMode ? 'bg-black bg-opacity-70' : 'bg-black bg-opacity-40'}`} // Dynamic background overlay
+      onClick={onCancel} // Allow clicking outside to cancel
+      role="dialog" // Added for accessibility
+      aria-modal="true" // Added for accessibility
+      aria-label={`Confirm deletion of ${itemName}`} // Dynamic aria-label for accessibility
+    >
+      <div
+        className={`relative p-6 rounded-lg shadow-lg w-full max-w-sm space-y-4
+                   ${darkMode ? 'bg-gray-800' : 'bg-white'}`} // Dynamic modal background
+        onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside modal
+      >
+        <h3 className={`text-xl font-semibold mb-2 ${darkMode ? 'text-pink-400' : 'text-pink-700'}`}> {/* Dynamic title color */}
+          Confirm Deletion
+        </h3>
+        <p className={`mb-4 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}> {/* Dynamic text color */}
+          Are you sure you want to delete {itemName}? This action cannot be undone.
         </p>
         <div className="flex justify-end space-x-2">
           <button
             onClick={onCancel}
-            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors duration-200"
+            className={`px-4 py-2 border rounded-lg transition-colors duration-200
+                       ${darkMode ? 'border-gray-600 text-gray-200 hover:bg-gray-700' : 'border-gray-300 text-gray-700 hover:bg-gray-100'}`} // Dynamic button style
+            aria-label="Cancel deletion" // Added for accessibility
           >
             Cancel
           </button>
           <button
             onClick={onConfirm}
-            className="bg-red-600 text-white px-4 py-2 rounded-lg shadow-md hover:bg-red-700 transition-colors duration-200"
+            className={`px-4 py-2 rounded-lg shadow-md transition-colors duration-200
+                       ${darkMode ? 'bg-red-700 text-white hover:bg-red-800' : 'bg-red-600 text-white hover:bg-red-700'}`} // Dynamic button style
+            aria-label="Confirm deletion" // Added for accessibility
           >
             Delete
           </button>

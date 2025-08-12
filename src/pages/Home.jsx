@@ -255,13 +255,6 @@ export default function Home() {
     <div className="min-h-screen bg-gradient-to-b from-pink-50 to-white dark:from-gray-900 dark:to-gray-800 transition-colors duration-200">
       <Navbar /> {/* Navbar controls the global 'dark' class */}
       <div className="container mx-auto p-4 md:p-6 font-inter">
-        {/* Debugging Theme Indicator - useful for verifying the state change */}
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-          Current Theme:{" "}
-          <span className="font-semibold">
-            {isCurrentThemeDark ? "Dark" : "Light"}
-          </span>
-        </p>
 
         {/* Stats and Filters */}
         <section className="mb-8">
