@@ -8,6 +8,14 @@ This is a full-stack web application designed exclusively for your family. It's 
 
 ---
 
+## About the Project
+
+This project began as a real-world exercise to learn and master **Supabase**. I wanted to build a practical application that I could use with my own family, and the idea for a private memory-sharing hub was the perfect fit.
+
+I started with a simple concept and built the features from the ground up while learning the intricacies of Supabase's database, authentication, and storage services. The result is a robust and user-friendly application that demonstrates the power and simplicity of using modern tools to solve a personal need.
+
+---
+
 ## Key Features
 
 The Family Memories Hub is packed with features that make it a central hub for your family's memories.
