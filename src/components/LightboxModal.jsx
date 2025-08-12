@@ -1,11 +1,10 @@
-// src/components/LightboxModal.jsx
 import React, { useEffect, useState } from "react";
 import ReactionButtons from "./ReactionButtons";
 import CommentSection from "./CommentSection";
 import { supabase } from "../lib/supabaseClient";
 import { Link } from "react-router-dom"; // <-- Make sure to import Link
 
-export default function LightboxModal({ memory, onClose }) {
+export default function LightboxModal({ memory, onClose, darkMode }) { // Added darkMode prop
   if (!memory) return null;
 
   const isImage = memory.media_type === "image";
@@ -45,6 +44,7 @@ export default function LightboxModal({ memory, onClose }) {
     if (error) {
       console.error("Error adding tag:", error);
     } else {
+      // Re-fetch tags to get the full_name for the newly added tag
       const { data: newTagsData } = await supabase
         .from("tags")
         .select(`profile_id, profiles (full_name)`)
@@ -61,15 +61,25 @@ export default function LightboxModal({ memory, onClose }) {
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-80 p-4 font-inter"
       onClick={onClose}
+      role="dialog" // Added for accessibility
+      aria-modal="true" // Added for accessibility
+      aria-label="Memory details lightbox" // Added for accessibility
     >
       <div
-        className="relative max-h-full max-w-full flex flex-col md:flex-row bg-white rounded-lg shadow-lg overflow-hidden"
+        // Main modal content container: now explicitly defines height and uses flex for its children
+        className={`relative w-full max-w-full max-h-[95vh] h-[95vh] flex flex-col md:flex-row rounded-lg shadow-lg overflow-hidden
+                   ${darkMode ? 'bg-gray-800' : 'bg-white'}`} // Dynamic background
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex-shrink-0 md:w-3/4 max-h-[90vh] flex items-center justify-center bg-black">
+        {/* Media Display Section */}
+        <div 
+          // On mobile (default), take 2/3 of the height; on medium screens and up, take 3/4 width and full height
+          className="flex-shrink-0 w-full h-2/3 md:w-3/4 md:h-full flex items-center justify-center bg-black"
+        >
           <button
             onClick={onClose}
             className="absolute top-2 right-2 md:hidden text-white text-3xl font-bold bg-gray-800 bg-opacity-50 rounded-full w-8 h-8 flex items-center justify-center z-10 hover:bg-gray-700 transition"
+            aria-label="Close modal" // Added for accessibility
           >
             &times;
           </button>
@@ -91,32 +101,40 @@ export default function LightboxModal({ memory, onClose }) {
           )}
         </div>
 
-        <div className="flex-shrink-0 md:w-1/4 p-4 overflow-y-auto max-h-[90vh] flex flex-col">
+        {/* Details and Interactions Section */}
+        <div 
+          // On mobile (default), take 1/3 of the height and be scrollable; on medium screens and up, take 1/4 width and full height
+          className={`flex-shrink-0 w-full h-1/3 md:w-1/4 md:h-full p-4 flex flex-col overflow-y-auto
+                       ${darkMode ? 'bg-gray-800 text-gray-100' : 'bg-white text-gray-800'}`}> {/* Dynamic background and text */}
           <button
             onClick={onClose}
-            className="absolute top-2 right-2 md:block text-gray-800 text-3xl font-bold rounded-full w-8 h-8 flex items-center justify-center z-10 hover:bg-gray-200 transition"
+            className={`absolute top-2 right-2 hidden md:flex text-3xl font-bold rounded-full w-8 h-8 items-center justify-center z-10 transition
+                       ${darkMode ? 'text-gray-200 hover:bg-gray-700' : 'text-gray-800 hover:bg-gray-200'}`} // Dynamic button style
+            aria-label="Close modal" // Added for accessibility
           >
             &times;
           </button>
 
-          <h3 className="text-xl font-semibold text-pink-700 mb-2">
+          <h3 className={`text-xl font-semibold mb-2 ${darkMode ? 'text-pink-400' : 'text-pink-700'}`}> {/* Dynamic text color */}
             {memory.title}
           </h3>
-          <p className="text-gray-600 text-sm mb-4">{memory.description}</p>
+          <p className={`text-sm mb-4 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>{memory.description}</p> {/* Dynamic text color */}
 
           {/* Tagging Section */}
           <div className="mb-4">
-            <h4 className="font-semibold text-gray-800 mb-2">Tagged:</h4>
+            <h4 className={`font-semibold mb-2 ${darkMode ? 'text-gray-100' : 'text-gray-800'}`}>Tagged:</h4> {/* Dynamic text color */}
             <div className="flex flex-wrap gap-2 mb-2">
               {tags.length === 0 ? (
-                <p className="text-sm text-gray-500">No one is tagged yet.</p>
+                <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>No one is tagged yet.</p> // Dynamic text color
               ) : (
                 tags.map((tag) => (
                   <Link // <-- Use Link instead of span
                     to={`/person/${tag.profile_id}`}
                     key={tag.profile_id}
-                    className="bg-pink-100 text-pink-700 text-xs font-semibold px-2 py-1 rounded-full hover:bg-pink-200 transition"
+                    className={`text-xs font-semibold px-2 py-1 rounded-full transition
+                               ${darkMode ? 'bg-gray-700 text-pink-400 hover:bg-gray-600' : 'bg-pink-100 text-pink-700 hover:bg-pink-200'}`} // Dynamic tag style
                     onClick={onClose} // Close the modal when clicking a tag
+                    aria-label={`View memories with ${tag.profiles?.full_name}`} // Added for accessibility
                   >
                     {tag.profiles?.full_name}
                   </Link>
@@ -127,12 +145,15 @@ export default function LightboxModal({ memory, onClose }) {
               <div className="relative">
                 <button
                   onClick={() => setShowTaggingMenu(!showTaggingMenu)}
-                  className="bg-gray-200 text-gray-700 text-sm px-3 py-1 rounded-full hover:bg-gray-300 transition"
+                  className={`text-sm px-3 py-1 rounded-full transition
+                             ${darkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`} // Dynamic button style
+                  aria-label="Toggle tagging menu" // Added for accessibility
                 >
                   Add Tag
                 </button>
                 {showTaggingMenu && (
-                  <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg p-2 max-h-48 overflow-y-auto">
+                  <div className={`absolute z-20 mt-1 w-full rounded-md shadow-lg p-2 max-h-48 overflow-y-auto border
+                                 ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200'}`}> {/* Dynamic menu background and border */}
                     {allProfiles.map((profile) => (
                       <button
                         key={profile.id}
@@ -141,11 +162,12 @@ export default function LightboxModal({ memory, onClose }) {
                           setShowTaggingMenu(false);
                         }}
                         disabled={isTagged(profile.id)}
-                        className={`w-full text-left px-2 py-1 text-sm rounded-md transition ${
-                          isTagged(profile.id)
-                            ? "text-gray-400 cursor-not-allowed"
-                            : "text-gray-700 hover:bg-gray-100"
-                        }`}
+                        className={`w-full text-left px-2 py-1 text-sm rounded-md transition
+                                   ${isTagged(profile.id)
+                                     ? 'text-gray-400 cursor-not-allowed'
+                                     : `${darkMode ? 'text-gray-100 hover:bg-gray-600' : 'text-gray-700 hover:bg-gray-100'}` // Dynamic text and hover
+                                   }`}
+                        aria-label={`Tag ${profile.full_name}`} // Added for accessibility
                       >
                         {profile.full_name}
                       </button>
@@ -157,11 +179,11 @@ export default function LightboxModal({ memory, onClose }) {
           </div>
 
           <div className="flex-grow">
-            <ReactionButtons memoryId={memory.id} />
+            <ReactionButtons memoryId={memory.id} darkMode={darkMode} /> {/* Pass darkMode prop */}
           </div>
 
           <div className="flex-grow mt-4">
-            <CommentSection memoryId={memory.id} />
+            <CommentSection memoryId={memory.id} darkMode={darkMode} /> {/* Pass darkMode prop */}
           </div>
         </div>
       </div>
