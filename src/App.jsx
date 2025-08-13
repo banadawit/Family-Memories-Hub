@@ -14,6 +14,8 @@ import SetPassword from "./pages/SetPassword";
 import PersonDetails from "./pages/PersonDetails";
 import { SearchProvider } from "./context/SearchContext"; // Import SearchProvider
 import HeirloomHub from "./pages/HeirloomHub";
+import ForgotPassword from './pages/ForgotPassword'; // <-- New import
+import UpdatePassword from './pages/UpdatePassword'; 
 /**
  * PrivateRoute component to protect routes that require authentication.
  * If the user is not logged in, they are redirected to the login page.
@@ -51,6 +53,8 @@ export default function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/update-password" element={<UpdatePassword />} />
             <Route
               path="/"
               element={
