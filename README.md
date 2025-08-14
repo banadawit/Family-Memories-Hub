@@ -65,7 +65,7 @@ Follow these steps to get a local copy of the project running for development.
 1.  **Clone the Repository**
 
     ```bash
-    git clone [https://github.com/your-username/Family-Memories-Hub.git](https://github.com/your-username/Family-Memories-Hub.git)
+    git clone [https://github.com/banadawit/Family-Memories-Hub.git](https://github.com/banadawit/Family-Memories-Hub.git)
     cd Family-Memories-Hub
     ```
 
